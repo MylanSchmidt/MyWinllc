@@ -54,7 +54,7 @@
                         <a href="#" class="mw-btn-primary" id="mwOpenConversation">
                             Start a Conversation
                         </a>
-                        <a href="#" class="mw-link-secondary">
+                        <a href="#" id="mwOpenPortal" class="mw-link-secondary">
                             Client Portal
                         </a>
                     </div>
@@ -148,6 +148,41 @@
             <span class="mw-logo-pill-dot"></span>
             <span>My Win llc</span>
         </p>
+    </div>
+</div>
+<!-- Client Portal Token Modal -->
+<div class="mw-modal" id="mwPortalModal" aria-hidden="true">
+    <div class="mw-modal__overlay" data-close-portal></div>
+
+    <div class="mw-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="mwPortalTitle">
+        <button class="mw-modal__close" type="button" aria-label="Close" data-close-portal>×</button>
+
+        <h2 class="mw-modal__title" id="mwPortalTitle">Client Portal</h2>
+        <p class="mw-modal__subtitle">Enter your Client ID and access token to continue.</p>
+
+        <form id="mwPortalForm" class="mw-form" novalidate>
+            <div class="mw-form__grid">
+                <div class="mw-field">
+                    <label for="mwClientId">Client ID</label>
+                    <input id="mwClientId" name="client_id" type="text" autocomplete="username" required>
+                </div>
+
+                <div class="mw-field">
+                    <label for="mwPortalToken">Access Token</label>
+                    <input id="mwPortalToken" name="token" type="password" autocomplete="one-time-code" required>
+                </div>
+            </div>
+
+            <div class="mw-form__actions">
+                <button class="mw-btn-primary" type="submit">Submit</button>
+                <button class="mw-btn-ghost" type="button" data-close-portal>Close</button>
+            </div>
+
+            <p class="mw-form__fineprint mw-fineprint-pill">
+                <span class="mw-logo-pill-dot"></span>
+                <span>My Win LLC</span>
+            </p>
+        </form>
     </div>
 </div>
 

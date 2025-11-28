@@ -237,6 +237,76 @@ emailEl?.addEventListener("blur", validateEmail);
     lastFocus?.focus?.();
   };
 
+// ---- Client Portal modal (token prompt) ----
+const openPortalBtn = document.getElementById("mwOpenPortal");
+const portalModal = document.getElementById("mwPortalModal");
+const portalForm = document.getElementById("mwPortalForm");
+
+const openPortal = () => {
+  if (!portalModal) return;
+  lastFocus = document.activeElement;
+  portalModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("mw-modal-open");
+  (portalModal.querySelector("input, button") || portalModal).focus?.();
+};
+
+const closePortalOnly = () => {
+  if (!portalModal) return;
+  portalModal.setAttribute("aria-hidden", "true");
+};
+
+const closePortalAll = () => {
+  closePortalOnly();
+  // don't auto-close conversation modal here; only portal
+  document.body.classList.remove("mw-modal-open");
+  clearAttempted();
+  lastFocus?.focus?.();
+};
+
+openPortalBtn?.addEventListener("click", (e) => {
+  e.preventDefault();
+  // if another modal is open, close it first
+  if (isOpen(convoModal)) convoModal.setAttribute("aria-hidden", "true");
+  if (isOpen(successModal)) successModal.setAttribute("aria-hidden", "true");
+  openPortal();
+});
+
+// Outside click / X / Close button
+portalModal?.addEventListener("click", (e) => {
+  if (e.target.matches("[data-close-portal]")) closePortalAll();
+});
+
+// Escape closes portal if open (your existing Escape handler closes all; this is just extra safety)
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (isOpen(portalModal)) closePortalAll();
+});
+
+// Submit portal form (placeholder for future gateway wiring)
+portalForm?.addEventListener("submit", (e) => {
+  e.preventDefault();
+
+  // Reuse your validation behavior
+  markAttempted();
+  if (!portalForm.checkValidity()) {
+    const first = portalForm.querySelector(":invalid");
+    first?.focus?.();
+    return;
+  }
+
+  // For now: just acknowledge + close
+  closePortalOnly();
+  openPopup({
+    title: "Portal Access",
+    message: "User ID or token not valid. Try again or contact us.",
+    tone: "success",
+  });
+
+  portalForm.reset();
+  clearAttempted();
+});
+
+
   // Open modal
   openBtn?.addEventListener("click", (e) => {
     e.preventDefault();

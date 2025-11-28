@@ -1,48 +1,251 @@
 document.addEventListener("DOMContentLoaded", () => {
   const openBtn = document.getElementById("mwOpenConversation");
-  const modal = document.getElementById("mwConversationModal");
+
+  const convoModal = document.getElementById("mwConversationModal");
   const form = document.getElementById("mwConversationForm");
-  const statusEl = document.getElementById("mwFormStatus");
+
+  const successModal = document.getElementById("mwSuccessModal");
+  const successDialog = successModal?.querySelector(".mw-success__dialog") || null;
+  const successCloseBtn = document.getElementById("mwSuccessClose");
+  const successTitle = document.getElementById("mwSuccessTitle");
+  const successMessage = document.getElementById("mwSuccessMessage");
 
   let lastFocus = null;
 
-  const openModal = () => {
-    if (!modal) return;
-    lastFocus = document.activeElement;
-    modal.setAttribute("aria-hidden", "false");
-    document.body.classList.add("mw-modal-open");
-    (modal.querySelector("input, textarea, button") || modal).focus?.();
+  // ---- Validation tooltip + "show invalid only after submit attempt" ----
+  let tipEl = null;
+
+  const ensureTip = () => {
+    if (tipEl) return tipEl;
+    tipEl = document.createElement("div");
+    tipEl.className = "mw-validate-tip";
+    tipEl.setAttribute("role", "alert");
+    tipEl.style.display = "none";
+    document.body.appendChild(tipEl);
+    return tipEl;
   };
 
-  const closeModal = () => {
-    if (!modal) return;
-    modal.setAttribute("aria-hidden", "true");
+  const hideTip = () => {
+    if (!tipEl) return;
+    tipEl.style.display = "none";
+  };
+
+  const showTipFor = (field) => {
+    if (!field) return;
+    const tip = ensureTip();
+    tip.textContent = field.validationMessage || "Please check this field.";
+
+    const r = field.getBoundingClientRect();
+    const pad = 12;
+
+    // place below field, like native bubble; if too low, place above
+    let top = r.bottom + pad;
+    if (top + 80 > window.innerHeight) top = r.top - pad - 64;
+
+    const left = Math.min(Math.max(r.left, pad), window.innerWidth - pad - 320);
+
+    tip.style.top = `${top}px`;
+    tip.style.left = `${left}px`;
+    tip.style.display = "block";
+  };
+
+  const markAttempted = () => {
+    if (!form) return;
+    form.classList.add("mw-submitted"); // gates red borders in CSS
+  };
+
+  const clearAttempted = () => {
+    form?.classList.remove("mw-submitted");
+    hideTip();
+  };
+
+  // Use capture so we catch invalid events from any field
+  form?.addEventListener(
+    "invalid",
+    (e) => {
+      e.preventDefault(); // suppress native "Please fill out..." bubble
+      markAttempted();
+      showTipFor(e.target);
+    },
+    true
+  );
+
+  form?.addEventListener("input", (e) => {
+    if (e.target?.matches?.("input, textarea")) hideTip();
+  });
+
+  // ---- Phone auto-format + JS validity (US formats, +intl allowed) ----
+  const phoneEl = document.getElementById("mwPhone");
+
+  const formatUSPhone = (digits) => {
+    const d = digits.slice(0, 10);
+    const a = d.slice(0, 3);
+    const b = d.slice(3, 6);
+    const c = d.slice(6, 10);
+    if (d.length <= 3) return a;
+    if (d.length <= 6) return `(${a}) ${b}`;
+    return `(${a}) ${b}-${c}`;
+  };
+
+  const setCaretByDigitIndex = (el, digitIndex) => {
+    const v = el.value;
+    let count = 0;
+    for (let i = 0; i < v.length; i++) {
+      if (/\d/.test(v[i])) count++;
+      if (count >= digitIndex) {
+        el.setSelectionRange(i + 1, i + 1);
+        return;
+      }
+    }
+    el.setSelectionRange(v.length, v.length);
+  };
+
+  const validatePhone = () => {
+    if (!phoneEl) return true;
+
+    const raw = (phoneEl.value || "").trim();
+    if (!raw) {
+      phoneEl.setCustomValidity(""); // required handles empty
+      return false;
+    }
+
+    const digits = raw.replace(/\D/g, "");
+    const isIntl = raw.startsWith("+");
+
+    const okUS = digits.length === 10 || (digits.length === 11 && digits.startsWith("1"));
+    const okIntl = isIntl && digits.length >= 10 && digits.length <= 15;
+
+    phoneEl.setCustomValidity(okUS || okIntl ? "" : "Please enter a valid phone number.");
+    return okUS || okIntl;
+  };
+
+  if (phoneEl) {
+    phoneEl.addEventListener("input", () => {
+      const raw = phoneEl.value || "";
+      const caret = phoneEl.selectionStart ?? raw.length;
+
+      // digits typed before caret (so caret doesn't jump around)
+      const digitsBefore = (raw.slice(0, caret).match(/\d/g) || []).length;
+
+      const trimmed = raw.trim();
+      const digits = trimmed.replace(/\D/g, "");
+
+      // International: if it starts with +, keep "+digits" (no US formatting)
+      if (trimmed.startsWith("+")) {
+        phoneEl.value = "+" + digits.slice(0, 15);
+        validatePhone();
+        return;
+      }
+
+      // US formatting: if they start with 1, drop it for display
+      let d = digits;
+      if (d.length > 10 && d.startsWith("1")) d = d.slice(1);
+
+      phoneEl.value = formatUSPhone(d);
+      setCaretByDigitIndex(phoneEl, digitsBefore);
+
+      validatePhone();
+    });
+
+    phoneEl.addEventListener("blur", validatePhone);
+  }
+
+  const isOpen = (el) => el && el.getAttribute("aria-hidden") === "false";
+
+  const openConversation = () => {
+    if (!convoModal) return;
+    lastFocus = document.activeElement;
+
+    convoModal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("mw-modal-open");
+
+    (convoModal.querySelector("input, textarea, button") || convoModal).focus?.();
+  };
+
+  const closeConversationOnly = () => {
+    if (!convoModal) return;
+    convoModal.setAttribute("aria-hidden", "true");
+  };
+
+  const openPopup = ({ title, message, tone = "success" }) => {
+    if (!successModal) return;
+
+    if (successDialog) {
+      successDialog.classList.toggle("is-error", tone === "error");
+    }
+
+    if (successTitle) successTitle.textContent = title;
+    if (successMessage) successMessage.textContent = message;
+
+    successModal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("mw-modal-open");
+    successCloseBtn?.focus?.();
+  };
+
+  const closePopupOnly = () => {
+    if (!successModal) return;
+    successModal.setAttribute("aria-hidden", "true");
+  };
+
+  const closeAll = () => {
+    closePopupOnly();
+    closeConversationOnly();
     document.body.classList.remove("mw-modal-open");
-    if (statusEl) { statusEl.textContent = ""; statusEl.className = "mw-form__status"; }
+    clearAttempted();
     lastFocus?.focus?.();
   };
 
-  openBtn?.addEventListener("click", (e) => { e.preventDefault(); openModal(); });
-
-  modal?.addEventListener("click", (e) => {
-    if (e.target.matches("[data-close-modal]")) closeModal();
+  // Open modal
+  openBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    openConversation();
   });
 
+  // Clicking outside conversation closes ONLY if popup isn't open
+  convoModal?.addEventListener("click", (e) => {
+    if (!e.target.matches("[data-close-modal]")) return;
+    if (isOpen(successModal)) return;
+    closeAll();
+  });
+
+  // Clicking outside popup closes BOTH
+  successModal?.addEventListener("click", (e) => {
+    if (e.target.matches("[data-close-success]")) closeAll();
+  });
+
+  // Popup Close button closes BOTH
+  successCloseBtn?.addEventListener("click", closeAll);
+
+  // Escape closes any open modal(s)
   document.addEventListener("keydown", (e) => {
-    if (!modal) return;
-    if (e.key === "Escape" && modal.getAttribute("aria-hidden") === "false") closeModal();
+    if (e.key !== "Escape") return;
+    if (isOpen(successModal) || isOpen(convoModal)) closeAll();
   });
 
+  // Submit form via Web3Forms
   form?.addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (!statusEl) return;
 
-    statusEl.textContent = "";
-    statusEl.className = "mw-form__status";
+    markAttempted();
+
+    // Ensure phone validity is current before checkValidity()
+    validatePhone();
+
+    // Stop if required fields / formats aren't valid (our "invalid" handler will show tooltip)
+    if (!form.checkValidity()) {
+      const first = form.querySelector(":invalid");
+      first?.focus?.();
+      return;
+    }
+
+    hideTip();
 
     const btn = form.querySelector('button[type="submit"]');
     const old = btn?.textContent || "Send";
-    if (btn) { btn.disabled = true; btn.textContent = "Sending…"; }
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Sending…";
+    }
 
     try {
       const fd = new FormData(form);
@@ -50,19 +253,31 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await res.json();
 
       if (data.success) {
-        statusEl.textContent = "Thanks — we received your message.";
-        statusEl.classList.add("is-success");
         form.reset();
-        setTimeout(closeModal, 1200);
+        clearAttempted();
+        openPopup({
+          title: "Thanks!",
+          message: "We will respond to your inquiry promptly.",
+          tone: "success",
+        });
       } else {
-        statusEl.textContent = data.message || "Something went wrong. Please try again.";
-        statusEl.classList.add("is-error");
+        openPopup({
+          title: "Something went wrong",
+          message: data.message || "Please try again in a moment.",
+          tone: "error",
+        });
       }
     } catch {
-      statusEl.textContent = "Network error. Please try again.";
-      statusEl.classList.add("is-error");
+      openPopup({
+        title: "Network error",
+        message: "Please check your connection and try again.",
+        tone: "error",
+      });
     } finally {
-      if (btn) { btn.disabled = false; btn.textContent = old; }
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = old;
+      }
     }
   });
 });

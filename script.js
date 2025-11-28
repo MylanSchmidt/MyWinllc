@@ -38,7 +38,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const r = field.getBoundingClientRect();
     const pad = 12;
 
-    // place below field, like native bubble; if too low, place above
     let top = r.bottom + pad;
     if (top + 80 > window.innerHeight) top = r.top - pad - 64;
 
@@ -51,7 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const markAttempted = () => {
     if (!form) return;
-    form.classList.add("mw-submitted"); // gates red borders in CSS
+    form.classList.add("mw-submitted");
   };
 
   const clearAttempted = () => {
@@ -59,11 +58,10 @@ document.addEventListener("DOMContentLoaded", () => {
     hideTip();
   };
 
-  // Use capture so we catch invalid events from any field
   form?.addEventListener(
     "invalid",
     (e) => {
-      e.preventDefault(); // suppress native "Please fill out..." bubble
+      e.preventDefault(); // suppress native bubble
       markAttempted();
       showTipFor(e.target);
     },
@@ -74,6 +72,32 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.target?.matches?.("input, textarea")) hideTip();
   });
 
+  // ---- Email validity (requires @ and a .tld) ----
+const emailEl = document.getElementById("mwEmail");
+
+const validateEmail = () => {
+  if (!emailEl) return true;
+
+  const v = (emailEl.value || "").trim();
+  emailEl.value = v; // optional: auto-trim
+  emailEl.setCustomValidity("");
+
+  if (!v) return false; // "required" handles empty
+
+  // Simple + flexible: allows any TLD (.com, .net, .io, .co.uk, etc.)
+  const ok = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+
+  if (!ok) {
+    emailEl.setCustomValidity("Please enter a valid email address (name@domain.tld).");
+  }
+
+  return ok;
+};
+
+emailEl?.addEventListener("input", validateEmail);
+emailEl?.addEventListener("blur", validateEmail);
+
+  
   // ---- Phone auto-format + JS validity (US formats, +intl allowed) ----
   const phoneEl = document.getElementById("mwPhone");
 
@@ -112,11 +136,27 @@ document.addEventListener("DOMContentLoaded", () => {
     const digits = raw.replace(/\D/g, "");
     const isIntl = raw.startsWith("+");
 
-    const okUS = digits.length === 10 || (digits.length === 11 && digits.startsWith("1"));
-    const okIntl = isIntl && digits.length >= 10 && digits.length <= 15;
+    // If it starts with "+", validate as international ONLY (no US fallback)
+    if (isIntl) {
+      // Special case: +1 must be exactly 11 digits total (1 + 10-digit national number)
+      if (digits.startsWith("1")) {
+        const ok = digits.length === 11;
+        phoneEl.setCustomValidity(
+          ok ? "" : "Please enter a valid +1 number (e.g., +1 775 555 1212)."
+        );
+        return ok;
+      }
 
-    phoneEl.setCustomValidity(okUS || okIntl ? "" : "Please enter a valid phone number.");
-    return okUS || okIntl;
+      // Other countries: E.164 allows up to 15 digits total (country + national)
+      const ok = digits.length >= 8 && digits.length <= 15;
+      phoneEl.setCustomValidity(ok ? "" : "Please enter a valid international phone number.");
+      return ok;
+    }
+
+    // Not international: allow US formats (10 digits, or 11 starting with 1)
+    const okUS = digits.length === 10 || (digits.length === 11 && digits.startsWith("1"));
+    phoneEl.setCustomValidity(okUS ? "" : "Please enter a valid phone number.");
+    return okUS;
   };
 
   if (phoneEl) {
@@ -132,7 +172,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // International: if it starts with +, keep "+digits" (no US formatting)
       if (trimmed.startsWith("+")) {
-        phoneEl.value = "+" + digits.slice(0, 15);
+        // +1 => max 11 digits total; others => max 15 digits total
+        const max = digits.startsWith("1") ? 11 : 15;
+        phoneEl.value = "+" + digits.slice(0, max);
         validatePhone();
         return;
       }
@@ -230,8 +272,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Ensure phone validity is current before checkValidity()
     validatePhone();
+    validateEmail();
 
-    // Stop if required fields / formats aren't valid (our "invalid" handler will show tooltip)
     if (!form.checkValidity()) {
       const first = form.querySelector(":invalid");
       first?.focus?.();
